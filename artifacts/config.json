@@ -1,0 +1,39 @@
+{
+  "model_version": "2026-05-27",
+  "optimal_weight": 0.1,
+  "feature_list": {
+    "model_a": [
+      "is_accessibility_enabled",
+      "is_remote_app_running",
+      "hesitation_time_sec",
+      "tx_count_per_step",
+      "dest_tx_count_24step",
+      "amount_vs_avg_ratio",
+      "is_odd_hours",
+      "is_first_time_recipient"
+    ],
+    "model_b": [
+      "dest_is_new_account",
+      "is_accessibility_enabled",
+      "is_remote_app_running",
+      "is_first_time_recipient",
+      "is_odd_hours",
+      "dest_cashout_ratio",
+      "dest_avg_step_to_cashout",
+      "dest_tx_count_received",
+      "hesitation_time_sec",
+      "amount_vs_avg_ratio",
+      "tx_count_per_step",
+      "dest_tx_count_24step"
+    ]
+  },
+  "threshold_layer3": {
+    "block": 0.8,
+    "alert_otp": 0.5,
+    "pass": 0.0
+  },
+  "hard_rules": {
+    "rule1_bot": "is_accessibility_enabled=1 AND is_remote_app_running=1 → Block",
+    "rule2_victim": "hesitation_time_sec>45 AND is_first_time_recipient=1 → bias score >= 0.6"
+  }
+}
