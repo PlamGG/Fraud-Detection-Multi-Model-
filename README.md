@@ -1,336 +1,207 @@
-# 🛡️ EnsembleFraud
-### ระบบตรวจจับการทุจริตทางการเงิน ที่ใช้การรวมโมเดลหลายตัว
+# Fraud-Detection-Multi-Model
+
+ระบบตรวจจับธุรกรรมทุจริตทางการเงินที่ใช้โมเดลหลายตัวช่วยกันวิเคราะห์ แทนที่จะให้โมเดลเดียวตัดสินทุกอย่าง เพราะการทุจริตจริง ๆ ไม่ได้มีหน้าตาเดียว บางทีดูจากฝั่งคนโอนก็ปกติดี แต่พอมองที่บัญชีปลายทางกลับผิดสังเกตมาก โปรเจคนี้เลยรวมสองมุมนั้นเข้าด้วยกัน พร้อม Hard Rules ที่บล็อกได้ทันทีโดยไม่ต้องรอ AI
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![Jupyter](https://img.shields.io/badge/Jupyter-Notebook-orange.svg)](https://jupyter.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-<div align="center">
-
-**ตรวจจับธุรกรรมที่มีความเสี่ยง ด้วยความแม่นยำสูง และอัตราการบันทึกผิด (False Alarm) ต่ำ**
-
-[📊 ดูตัวอย่างผลลัพธ์](#ผลลัพธ์) • [🚀 วิธีเริ่มใช้](#วิธีเริ่มใช้) • [📖 อ่านเอกสารเต็ม](#โครงสร้าง)
-
-</div>
+[![Demo](https://img.shields.io/badge/Demo-HuggingFace%20Spaces-yellow.svg)](https://huggingface.co/spaces/DuckerMaster/Fraud-Detection-Multi-Model)
 
 ---
 
-## 🎯 Objectives (เป้าหมายของโครงการ)
+## Live Demo
 
-โครงการนี้มีเป้าหมายดังต่อไปนี้:
+ลองเล่นได้เลยที่ → **[huggingface.co/spaces/DuckerMaster/Fraud-Detection-Multi-Model](https://huggingface.co/spaces/DuckerMaster/Fraud-Detection-Multi-Model)**
 
-1. **สร้างระบบตรวจจับการทุจริตที่เชื่อถือได้** — ออกแบบโมเดลที่สามารถจับได้ 100% ของการทุจริต โดยลดการบันทึกผิด (false alarm) ให้น้อยที่สุด
+ระบบจะสุ่มสร้างบัญชีใหม่ทุกครั้งที่กด Start แล้วจำลองธุรกรรมแบบ real-time
+แต่ละรายการเห็น score จาก Model A, Model B และ final_score พร้อมเหตุผลที่ตัดสินใจ
 
-2. **ออกแบบ Feature Engineering ที่สะท้อนสัญญาณการทุจริตจริง** — ใช้ features ทั้งจาก device behavior, velocity pattern, และ payee risk profile เพื่อจับรูปแบบที่หลากหลาย
-
-3. **สร้างระบบที่ explainable (อธิบายได้)** — ไม่ใช่ "black box" แต่สามารถอธิบายว่าทำไมต้องบล็อคธุรกรรมแต่ละรายการได้
-
-4. **ออกแบบ 3-Layer Decision System** — ที่สะท้อนการทำงานจริงในธนาคาร คือ Hard Rules → Model Scoring → Threshold-based Decision
-
-5. **พิสูจน์คุณค่าของแต่ละ feature** — ผ่าน Ablation Study และ SHAP analysis เพื่อแสดงว่าแต่ละกลุ่ม features มีความสำคัญจริง
+<img width="1856" height="935" alt="image" src="https://github.com/user-attachments/assets/010c8a67-ef96-442f-827b-bde1958e4332" />
 
 ---
 
-## 📐 Scope (ขอบเขตของโครงการ)
+## Objectives
 
-### ✅ สิ่งที่ครอบคลุม
-
-- **Dataset:** PaySim dataset (ธุรกรรมโมบายแบงกิ้งจำลอง)
-- **Transaction Types:** TRANSFER (โอน) + CASH_OUT (ถอนสด)
-- **Models:** 2 โมเดล LightGBM (Model A + Model B) พร้อม Ensemble Weighting
-- **Features:** Device & Behavior, Velocity, Temporal, Payee Risk Profile (รวม 12 features)
-- **Evaluation Metrics:** Recall, FPR, Precision, ROC-AUC, Calibration, SHAP
-- **Decision Framework:** 3-Layer (Hard Rules → Scoring → Threshold)
-
-### ❌ สิ่งที่ไม่ครอบคลุม
-
-- ❌ ไม่ได้ใช้ Real (จริงจริง) ข้อมูลธนาคาร — ใช้ PaySim ซึ่งเป็นจำลองเท่านั้น
-- ❌ ไม่ได้ implement API ที่พร้อมใช้งาน production — เพียงแต่บันทึก artifacts เท่านั้น
-- ❌ ไม่ได้ include monitoring & retraining pipeline — เพียงแต่พิสูจน์แนวคิดเท่านั้น
+1. **สร้างระบบที่จับได้ครบและผิดพลาดน้อย** — เป้าหมายคือ Recall สูงสุดในขณะที่ลด False Alarm ให้ต่ำที่สุด ไม่ใช่เลือกอย่างใดอย่างหนึ่ง
+2. **Feature Engineering ที่สะท้อนสัญญาณจริง** — ใช้ทั้ง device behavior, velocity pattern และ payee risk profile เพื่อให้จับรูปแบบการทุจริตได้หลายแบบ
+3. **ระบบที่อธิบายได้** — ไม่ใช่ black box ทุกการตัดสินใจบอกได้ว่าเกิดจาก feature ไหน ผ่าน SHAP analysis
+4. **3-Layer Decision System** — ออกแบบให้สะท้อนการทำงานจริงในธนาคาร คือ Hard Rules → Model Scoring → Threshold Decision
+5. **พิสูจน์คุณค่าของแต่ละ feature** — ผ่าน Ablation Study 4 rounds แสดงว่าตัดกลุ่ม feature ไหนออกแล้วผลแย่ลงจริง
 
 ---
 
-## 🏗️ Pipeline Overview (ภาพรวมของระบบ)
+## Results
+
+| Metric | ค่าที่ได้ | ความหมาย |
+|--------|----------|----------|
+| Recall | **100%** | จับได้ทุกธุรกรรมทุจริต |
+| False Positive Rate | **0.03%** | ผิดแค่ 1 ใน 3,000 รายการปกติ |
+| Precision | **92.26%** | เมื่อบล็อก ผิดแค่ 1 ใน 13 |
+| ROC-AUC | **1.0000** | แยก fraud / normal ได้สมบูรณ์ |
+| Optimal Weight (w\*) | **0.30** | Model A 30% + Model B 70% |
+
+เทียบกับ Logistic Regression baseline ที่ Recall 97.2% แต่ FPR สูงถึง 21.6%
+ระบบนี้ลด False Alarm ได้ **720 เท่า** โดยที่ Recall ยังสูงขึ้นด้วย
+
+---
+
+## Why This Approach
+
+**ทำไมถึงใช้ 2 โมเดลแทนที่จะโมเดลเดียว**
+
+โมเดลที่ดูแค่ฝั่ง sender อาจจับได้ดีถ้าคนโอนมีพฤติกรรมผิดปกติ แต่พลาดกรณีที่คนโอนดูปกติทุกอย่างแต่บัญชีปลายทางเป็น mule account ที่รับโอนมาหลายสิบครั้งแล้ว การแยกเป็น 2 โมเดลแล้ว ensemble ทำให้จับได้ทั้งสองกรณี
+
+**ทำไม w\* = 0.3 ไม่ใช่ 0.5**
+
+ได้มาจาก grid search บน validation set ไม่ได้กำหนดเอง Model B ได้น้ำหนักมากกว่าเพราะในชุดข้อมูลนี้ประวัติบัญชีปลายทางเป็น signal ที่แข็งแกร่งกว่า พฤติกรรม sender ส่วน Model A ยังมีคุณค่าในแง่จับ pattern ที่ Model B พลาด
+
+**ทำไมไม่ใช้ SMOTE จัดการ imbalanced data**
+
+SMOTE สร้างข้อมูลสังเคราะห์โดย interpolate ระหว่างจุด ซึ่งทำให้ binary features เช่น `is_accessibility_enabled` กลายเป็นทศนิยม เช่น 0.43 ซึ่งขัดกับ Hard Rules ที่ต้องการค่า 0 หรือ 1 เท่านั้น จึงใช้ random duplication oversampling แทน
+
+---
+
+## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                     EnsembleFraud System Architecture                │
-└─────────────────────────────────────────────────────────────────────┘
-
-Phase 1: DATA PREPARATION (เตรียมข้อมูล)
-├── Input: PaySim dataset (6.4M transactions)
-├── Filter: TRANSFER + CASH_OUT only
-├── Split: Train (80%) | Test (20%)
-├── Engineer: 12 features (Device/Behavior/Velocity/Payee)
-└── Output: CSV พร้อมใช้ train
-
-Phase 2: MODEL TRAINING (ฝึกโมเดล)
-├── Model A: Sender Perspective (LightGBM)
-│   └── Features: Device behavior, Velocity, Temporal (8 features)
-├── Model B: Payee Risk Profile (LightGBM)
-│   └── Features: Payee history, Account age (5 features)
-├── Ensemble: Weighted combination (w* = 0.3)
-│   └── final_score = 0.3 × prob_A + 0.7 × prob_B
-└── Save: 2 pipelines + config
-
-Phase 3: EVALUATION (ประเมินผล)
-├── Metrics: Recall, FPR, Precision, AUC
-├── Analysis: SHAP, Calibration, Threshold Sensitivity
-├── Ablation: 4 feature rounds
-└── Visualization: Curves, Distributions, Waterfall
-
-Phase 4: REPORT (สรุปผลลัพธ์)
-├── Summary: Model comparison table
-├── Impact: Business metrics from confusion matrix
-├── Limitations: What works, what doesn't
-└── Output: Documentation + artifacts
-
-                                ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│                    3-LAYER DECISION FRAMEWORK                        │
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  LAYER 1: HARD RULES (ตรวจสอบด่วน)                                 │
-│  ├─ Rule 1: accessibility=1 AND remote=1  → 🛑 Block               │
-│  └─ Rule 2: hesitation>45s AND first_time=1 → ⚠️ Bias high        │
-│                                    ↓                                 │
-│  LAYER 2: MODEL SCORING (ส่งให้ AI วิเคราะห์)                      │
-│  ├─ Model A (Sender): prob = [0-1]                                 │
-│  ├─ Model B (Payee): prob = [0-1]                                  │
-│  └─ Ensemble: score = weighted combo                               │
-│                                    ↓                                 │
-│  LAYER 3: DECISION (ตัดสินใจสุดท้าย)                               │
-│  ├─ score > 0.8  → 🛑 Block                                        │
-│  ├─ 0.5–0.8      → ⚠️ Alert + OTP                                  │
-│  └─ < 0.5        → ✅ Pass                                          │
-│                                                                       │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-### ข้อมูลไหลผ่านระบบ
-
-```
-Raw Transaction
+Transaction
     │
-    ├─→ [Feature Engineering] → 12 features
+    ▼
+Layer 1 — Hard Rules (ไม่ต้องรอ AI)
+    │  Rule 1: Accessibility + Remote App เปิดพร้อมกัน → Block ทันที
+    │  Rule 2: hesitation > 45s + บัญชีใหม่ → bias score ≥ 0.6
     │
-    ├─→ [Hard Rules Check]
-    │   ├─ ✓ Pass → continue
-    │   └─ ✗ Match Rule 1/2 → bias or block
+    ▼
+Layer 2 — Ensemble Scoring
+    │  Model A  ดูพฤติกรรม sender  (8 features)
+    │  Model B  ดูประวัติ payee    (12 features)
+    │  final_score = 0.3 × prob_A + 0.7 × prob_B
     │
-    ├─→ [Model A] ─┐
-    │              ├─→ [Weighted Ensemble] ─→ final_score
-    ├─→ [Model B] ─┤
-    │
-    └─→ [Layer 3 Decision]
-        ├─ score > 0.8  → 🛑 BLOCK
-        ├─ 0.5–0.8      → ⚠️ ALERT
-        └─ < 0.5        → ✅ PASS
+    ▼
+Layer 3 — Threshold Decision
+       score ≥ 0.80  →  🔴 Block
+       score ≥ 0.50  →  🟡 Alert + OTP
+       score < 0.50  →  🟢 Pass
+```
+
+**ตัวอย่างการตัดสินใจ**
+
+```
+# ธุรกรรมปกติ
+score: 0.06  →  ✅ Pass
+
+# ถูก Hard Rule จับ (ไม่ผ่าน ML เลย)
+is_accessibility=1  AND  is_remote_app=1  →  🔴 Block ทันที
+
+# ML จับได้
+score: 0.85  →  🔴 Block   (Model A: 0.79, Model B: 0.88)
+
+# ขอยืนยันตัวตน
+score: 0.67  →  🟡 Alert + OTP
 ```
 
 ---
 
-## 🎯 โครงการนี้คืออะไร
+## Scope
 
-**EnsembleFraud** เป็นระบบตรวจจับการทุจริตที่ทำงานแบบ "หลายชั้น" โดยมีการรวมข้อมูลจากหลาย ๆ มุมมอง:
+**ครอบคลุม**
+- Dataset: PaySim (ธุรกรรมโมบายแบงกิ้งจำลอง 6.4M รายการ)
+- Transaction types: TRANSFER + CASH_OUT
+- Models: LightGBM × 2 พร้อม Ensemble Weighting
+- Features: 12 features (Device & Behavior, Velocity, Temporal, Payee Profile)
+- Evaluation: Recall, FPR, Precision, ROC-AUC, Calibration, SHAP, Ablation
 
-- 👤 **มุมมองผู้โอน** — ดูพฤติกรรมและการใช้ device ของคนที่โอนเงิน
-- 💼 **มุมมองผู้รับ** — ดูประวัติและความเสี่ยงของบัญชีที่รับเงิน
-- ⚠️ **กฎเกณฑ์ที่ตรวจสอบด่วน** — บล็อคธุรกรรมที่เห็นได้ชัดว่าผิดปกติทันที
-
-ในทางธุรกิจจริง ไม่สามารถอาศัยโมเดลตัวเดียวได้เพราะการทุจริตมีลักษณะที่แตกต่างกันมาก และเกิดขึ้นได้เร็ว โครงการนี้จึงสร้างระบบที่ช่วยให้พยากรณ์ได้ถูกต้องยิ่งขึ้น
-
----
-
-## 📂 ไฟล์ในโครงการนี้
-
-```
-📦 EnsembleFraud
- ├── 📄 README.md                          ← ไฟล์นี้
- ├── 📄 requirements.txt                   ← ใช้สำหรับติดตั้ง library
- │
- ├── 📔 notebooks/
- │   └── scam-detection-system-end-to-end-pipeline.ipynb     ← สมุดบันทึก (ไฟล์หลัก)
- │
- ├── 💾 artifacts/                          ← ข้อมูลและโมเดลที่บันทึกไว้
- │   ├── model_a_pipeline.joblib
- │   ├── model_b_pipeline.joblib
- │   ├── config.json
- │   └── ablation_results.csv
- │
- └── 📊 results/                            ← รูปภาพและกราฟที่สร้างขึ้น
-     └── (ไฟล์ที่สร้างจากโน้ตบุ๊ก)
-```
+**ไม่ครอบคลุม**
+- ไม่ได้ใช้ข้อมูลจริงจากธนาคาร — PaySim เป็นข้อมูลจำลองเท่านั้น
+- ไม่ได้ implement production API
+- ไม่มี monitoring และ retraining pipeline
 
 ---
 
-## 📊 ผลลัพธ์
+## Pipeline Overview
 
-ระบบนี้ได้ผลลัพธ์ดังนี้บน **test set (ข้อมูลสอบสัญญา)**:
+**Phase 1 — Data Preparation**
+อ่าน PaySim 6.4M ธุรกรรม กรองเฉพาะ TRANSFER + CASH_OUT แบ่ง train 80% / test 20% สร้าง 12 features และ pre-compute Hard Rule flag columns ไว้เพื่อไม่ให้ logic ซ้ำกันในหลาย Phase
+Output: `paysim_features_train.csv` + `paysim_features_test.csv`
 
-| ตัวชี้วัด | ผลลัพธ์ | ความหมาย |
-|---------|--------|---------|
-| **Recall** | 1.0000 (100%) | จับได้ทุกธุรกรรมทุจริต |
-| **False Positive Rate** | 0.0003 (0.03%) | ผิดบันทึก = 1 ใน 3,000 รายการปกติ |
-| **Precision** | 0.9226 (92%) | เมื่อบล็อค มีความมั่นใจว่ากำลังบล็อคผิด = 1 ใน 12 |
-| **ROC-AUC** | 1.0000 (100%) | ส่วนแยกระหว่าง fraud/normal สมบูรณ์ |
-| **Optimal Weight** | w* = 0.3 | Model A 30% + Model B 70% |
+**Phase 2 — Model Training**
+ฝึก Model A (sender perspective) และ Model B (payee risk profile) แยกกัน ใช้ random duplication oversampling + `is_unbalance=True` จัดการ class imbalance จากนั้น grid search หา w* = 0.3
+Output: `model_a_pipeline.joblib` + `model_b_pipeline.joblib` + `config.json`
 
-### 📈 ความแม่นยำเพิ่มขึ้นแค่ไหน?
+**Phase 3 — Evaluation**
+Confusion Matrix, ROC-AUC, PR-Curve, SHAP feature importance, Calibration Curve และ Ablation Study 4 rounds พิสูจน์ว่าแต่ละกลุ่ม feature มีผลจริง Sequential evaluation แยก Hard Rule rows ออกก่อนวัด ML metrics
+
+**Phase 4 — Executive Report**
+Business impact table, model comparison และข้อจำกัดที่ควรรู้ก่อนนำไปใช้จริง
+
+---
+
+## Project Structure
 
 ```
-Baseline (Logistic Regression ธรรมดา):
-  Recall = 97.20%, FPR = 21.60%
-  ❌ จับได้ดี แต่ผิดบันทึกเยอะมาก (21.6%)
-
-EnsembleFraud (ที่เราสร้าง):
-  Recall = 100.00%, FPR = 0.03%
-  ✅ จับได้ดี AND ผิดบันทึกน้อยเกือบไม่มี (0.03%)
-
-=> ลดการบันทึกผิด ถึง 720 เท่า! 🎯
+Fraud-Detection-Multi-Model/
+├── notebooks/
+│   └── scam_detection_pipeline.ipynb    ← notebook หลัก Phase 1–4
+├── artifacts/
+│   ├── model_a_pipeline.joblib
+│   ├── model_b_pipeline.joblib
+│   ├── config.json
+│   ├── payee_profile_store.csv
+│   └── ablation_results.csv
+├── assets/
+│   └── demo_screenshot.png              ← ใส่ screenshot HF Space ตรงนี้
+├── app.py                               ← Streamlit live demo
+├── simulator.py                         ← transaction generator + scorer
+├── requirements.txt
+└── README.md
 ```
 
 ---
 
-## 🚀 วิธีเริ่มใช้
-
-### 📋 ข้อกำหนด
-- Python 3.10 ขึ้นไป
-- Jupyter Notebook (หรือ JupyterLab)
-- ระบบปฏิบัติการ: Windows, macOS, Linux
-
-### 1️⃣ ดาวน์โหลดโครงการ
+## Getting Started
 
 ```bash
-git clone https://github.com/yourusername/EnsembleFraud.git
-cd EnsembleFraud
-```
-
-### 2️⃣ ติดตั้ง Library
-
-```bash
+git clone https://github.com/PlamGG/Fraud-Detection-Multi-Model-.git
+cd Fraud-Detection-Multi-Model-
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+jupyter notebook notebooks/scam_detection_pipeline.ipynb
 ```
 
-### 3️⃣ เปิด Notebook
-
-```bash
-jupyter notebook
-# เปิด: notebooks/scam-detection-system-end-to-end-pipeline.ipynb
-```
-
-### 4️⃣ รัน Cell ตามลำดับ
-
-📌 **สำคัญ:** ต้องรัน Cell ตั้งแต่บน (Phase 1) ลงมาล่าง (Phase 4)
+ต้องรัน Cell จาก Phase 1 ลงมาตามลำดับ เพราะแต่ละ Phase ใช้ตัวแปรจาก Phase ก่อนหน้า ถ้าข้ามจะ error ตอน load feature matrix
 
 ---
 
-## 📖 โครงสร้าง Notebook
+## SHAP Explainability
 
-### **Phase 1: เตรียมข้อมูล (Data Preparation)**
-- อ่าน PaySim dataset (6.4M ธุรกรรม)
-- Filter TRANSFER + CASH_OUT
-- สร้าง 12 features
-- ✅ **Output:** `paysim_features_train.csv` + `paysim_features_test.csv`
+ระบบอธิบายได้ว่าทำไมถึงตัดสินใจแบบนั้น ตัวอย่าง
 
-### **Phase 2: ฝึกโมเดล (Model Training)**
-- ฝึก Model A (Sender perspective)
-- ฝึก Model B (Payee risk profile)
-- หา optimal weight w* = 0.3
-- ✅ **Output:** 2 pipelines + config.json
-
-### **Phase 3: ทดสอบและอธิบาย (Evaluation)**
-- Confusion Matrix, ROC-AUC, PR-Curve
-- SHAP feature importance
-- Ablation Study (4 rounds)
-- ✅ **Output:** ตาราง + รูป SHAP
-
-### **Phase 4: สรุปรายงาน (Executive Report)**
-- Model comparison table
-- Business Impact metrics
-- Limitations & future work
-- ✅ **Output:** Dashboard + documentation
-
----
-
-## 💾 ไฟล์โมเดลที่บันทึกไว้
-
-| ไฟล์ | ใช้เพื่อ |
-|-----|--------|
-| `model_a_pipeline.joblib` | ทำนายเสี่ยงของผู้โอน |
-| `model_b_pipeline.joblib` | ทำนายเสี่ยงของผู้รับ |
-| `config.json` | เก็บ weight, threshold, features |
-
----
-
-## 🔍 ตัวอย่างการใช้งาน
-
-### ✅ ธุรกรรมปกติ
 ```
-Score: 0.06 (6%) → ✅ ส่งต่อได้
-```
-
-### 🛑 ธุรกรรมผิดปกติ (Rule 1)
-```
-is_accessibility=1 AND is_remote=1 → 🛑 บล็อคทันที
-```
-
-### ⚠️ ธุรกรรมสงสัย
-```
-Score: 0.70 (70%) → ⚠️ ขอ OTP ยืนยันตัวตน
+hesitation_time_sec: 150s   → +40% toward fraud
+is_remote_app_running: 1    → +35% toward fraud
+dest_tx_count_24step: 50    → +20% toward fraud
+──────────────────────────────────────────────
+final_score: 0.85  →  🔴 Block
 ```
 
 ---
 
-## ⚙️ วิธีเข้าใจ Code
+## Limitations
 
-### Pipeline Design
-```python
-model_a_pipeline = Pipeline([
-    ('scaler',     StandardScaler()),
-    ('model',      lgb.LGBMClassifier(...))
-])
-```
-
-### Ensemble Formula
-```python
-final_score = 0.3 * prob_a + 0.7 * prob_b
-```
+- **ข้อมูลจำลอง** — PaySim ไม่ใช่ธุรกรรมจริงจากธนาคาร ถ้าจะ deploy จริงต้องเทรนใหม่กับข้อมูลขององค์กรนั้น
+- **Threshold ต้องปรับ** — 0.5 / 0.8 เหมาะกับ dataset นี้ ธุรกิจที่ยอมรับความเสี่ยงต่างกันควรปรับค่านี้ตาม risk appetite
+- **Model drift** — รูปแบบการทุจริตเปลี่ยนตลอดเวลา ควร retrain อย่างน้อยทุก 6 เดือน
 
 ---
 
-## 📊 SHAP Explainability
+## References
 
-**Feature Impact ต่อการตัดสินใจ:**
-
-```
-hesitation_time_sec: 150s  → +40%
-is_remote_app: 1            → +35%
-tx_count_24step: 50         → +20%
-────────────────────────────────
-Final Score: 0.85 → 🛑 Block
-```
+- [PaySim Dataset](https://www.kaggle.com/datasets/ealaxi/paysim1)
+- [LightGBM](https://lightgbm.readthedocs.io)
+- [SHAP](https://github.com/slundberg/shap)
+- [Imbalanced Learning](https://imbalanced-learn.org)
 
 ---
 
-## ⚠️ ข้อจำกัด
-
-1. **ใช้ PaySim (สมมติ)** — ต้องเทรนใหม่บนข้อมูลจริง
-2. **Threshold ต้องปรับ** — "ยอมรับเสี่ยงเท่าไร" ขึ้นกับธุรกิจ
-3. **ต้อง Monitor** — โมเดลทั่ว 6 เดือนต้องอัปเดต
-
----
-
-## 🎓 เรียนรู้เพิ่มเติม
-
-- **SHAP:** https://github.com/slundberg/shap
-- **LightGBM:** https://lightgbm.readthedocs.io
-- **Imbalanced Learning:** https://imbalanced-learn.org
-
----
-
-## 📜 ลิขสิทธิ์
-
-MIT License — สามารถใช้และปรับแต่งได้อย่างอิสระ
+MIT License
