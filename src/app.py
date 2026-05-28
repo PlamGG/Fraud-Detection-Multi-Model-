@@ -1,12 +1,13 @@
 import time
 import random
+from datetime import datetime
 import streamlit as st
 from simulator import generate_accounts, generate_transaction, score_transaction
 
 # ─── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Fraud Detection — Multi-Model",
-    page_icon="🛡️",
+    page_title="Fraud Analytics — Enterprise Monitor",
+    page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -14,50 +15,67 @@ st.set_page_config(
 # ─── Styling ──────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* Feed card base */
-.tx-card {
-    padding: 10px 14px;
+/* App Background & Base Typography */
+.stApp { background-color: #f8fafc; }
+
+/* Custom Table Design for Bank Grid */
+.bank-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: white;
+}
+.bank-table th {
+    background-color: #f1f5f9;
+    color: #475569;
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 2px solid #cbd5e1;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.bank-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #334155;
+    vertical-align: middle;
+}
+.bank-table tr:hover { background-color: #f1f5f9; }
+
+/* Decision Styles */
+.text-pass { color: #16a34a; font-weight: 600; }
+.text-alert { color: #d97706; font-weight: 600; }
+.text-block { color: #dc2626; font-weight: 600; }
+
+.status-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+/* GitHub Card Sticked to Sidebar Bottom */
+.github-card {
+    background: #0f172a;
+    color: #ffffff;
+    padding: 14px;
     border-radius: 8px;
-    border: 0.5px solid #e2e8f0;
-    margin-bottom: 6px;
-    background: #ffffff;
+    margin-top: 50px;
+    border: 1px solid #1e293b;
+}
+.github-card a {
+    color: #38bdf8 !important;
+    text-decoration: none;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 13px;
 }
-.tx-card.fraud  { border-left: 3px solid #ef4444; background: #fff5f5; }
-.tx-card.alert  { border-left: 3px solid #f59e0b; background: #fffbeb; }
-.tx-card.rule1  { border-left: 3px solid #8b5cf6; background: #f5f3ff; }
-.tx-card.pass   { border-left: 3px solid #22c55e; background: #f0fdf4; }
-
-.badge {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 100px;
-    margin-right: 4px;
-}
-.badge-block { background:#ef4444; color:#fff; }
-.badge-alert { background:#f59e0b; color:#fff; }
-.badge-rule1 { background:#8b5cf6; color:#fff; }
-.badge-pass  { background:#22c55e; color:#fff; }
-
-.score-row { font-size: 11px; color: #64748b; margin-top: 4px; }
-.tx-meta   { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-
-.alert-card {
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 0.5px solid;
-    margin-bottom: 8px;
-    font-size: 12px;
-}
-.alert-card.block { border-color:#ef4444; background:#fff5f5; }
-.alert-card.otp   { border-color:#f59e0b; background:#fffbeb; }
-.alert-card.rule  { border-color:#8b5cf6; background:#f5f3ff; }
-
-/* KPI strip */
-.kpi-val { font-size: 28px; font-weight: 600; }
-.kpi-lbl { font-size: 12px; color: #64748b; }
+.github-card a:hover { text-decoration: underline; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -65,8 +83,8 @@ st.markdown("""
 def _init():
     st.session_state.setdefault("running",      False)
     st.session_state.setdefault("accounts",     [])
-    st.session_state.setdefault("feed",         [])       # list of scored tx dicts
-    st.session_state.setdefault("alerts",       [])       # fraud/alert only
+    st.session_state.setdefault("feed",         [])       # สะสมจากบนลงล่าง
+    st.session_state.setdefault("alerts",       [])       # สะสมจากบนลงล่าง
     st.session_state.setdefault("step",         1)
     st.session_state.setdefault("tx_counter",   1)
     st.session_state.setdefault("total_tx",     0)
@@ -77,39 +95,19 @@ def _init():
 
 _init()
 
-# ─── Sidebar ──────────────────────────────────────────────────────────────────
+# ─── Sidebar (Configuration & Hidden Controls) ────────────────────────────────
 with st.sidebar:
-    st.markdown("### Fraud Detection\n**Multi-Model System**")
-    st.caption("Sender × Payee ensemble · 3-layer pipeline")
+    st.markdown("### ⚙️ Engine Settings")
+    st.caption("Adjust variables for the transaction generator.")
     st.divider()
 
-    speed     = st.slider("Speed (seconds / transaction)", 0.3, 3.0, 1.0, 0.1)
-    fraud_pct = st.slider("High-risk account ratio (%)", 5, 40, 12, 1)
-    n_accs    = st.slider("Accounts to monitor", 3, 8, 5, 1)
+    speed     = st.slider("Generator Delay (seconds)", 0.3, 3.0, 1.0, 0.1)
+    fraud_pct = st.slider("Mule Account Ratio (%)", 5, 40, 12, 1)
+    n_accs    = st.slider("Accounts Network Size", 3, 8, 5, 1)
 
     st.divider()
-
-    col1, col2 = st.columns(2)
-    start_btn  = col1.button("▶ Start",  use_container_width=True, type="primary")
-    stop_btn   = col2.button("⏹ Stop",   use_container_width=True)
-    reset_btn  = st.button("↺ Reset session", use_container_width=True)
-
-    if start_btn:
-        seed = random.randint(0, 99999)
-        st.session_state.accounts   = generate_accounts(n=n_accs, seed=seed)
-        st.session_state.running    = True
-        st.session_state.feed       = []
-        st.session_state.alerts     = []
-        st.session_state.step       = 1
-        st.session_state.tx_counter = 1
-        st.session_state.total_tx   = 0
-        st.session_state.total_block  = 0
-        st.session_state.total_alert  = 0
-        st.session_state.total_pass   = 0
-        st.session_state.amount_risk  = 0.0
-
-    if stop_btn:
-        st.session_state.running = False
+    st.markdown("**System Actions**")
+    reset_btn = st.button("↺ Reset Simulation Data", use_container_width=True)
 
     if reset_btn:
         for k in ["running","accounts","feed","alerts","step","tx_counter",
@@ -118,192 +116,197 @@ with st.sidebar:
         _init()
         st.rerun()
 
-    st.divider()
-    st.markdown("**Thresholds**")
-    st.markdown("🔴 Block `≥ 0.80`  \n🟡 Alert+OTP `≥ 0.50`  \n🟢 Pass `< 0.50`")
+    # GitHub Link ตรึงไว้ล่างสุดของ Sidebar
+    st.markdown("""
+    <div class="github-card">
+        <p style="margin:0 0 6px 0; font-size:11px; color:#94a3b8;">Want to learn more?</p>
+        <a href="https://github.com/PlamGG/Fraud-Detection-Multi-Model-" target="_blank">
+            <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor" style="color:white;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+            Read Technical Docs
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.divider()
-    st.markdown("**Accounts**")
-    for acc in st.session_state.accounts:
-        icon = {"normal": "🟢", "alert": "🟡", "blocked": "🔴"}.get(acc["status"], "⚪")
-        risk_tag = {"low": "", "medium": " ⚠️", "high": " 🔥"}.get(acc["risk_level"], "")
-        st.caption(f"{icon} `{acc['account_id']}`  {acc['risk_level']}{risk_tag}")
+# ─── Main Header & Dynamic Bank Controls ──────────────────────────────────────
+title_col, ctrl_col = st.columns([2, 1])
 
-    st.divider()
-    st.link_button(
-        "GitHub — Fraud-Detection-Multi-Model",
-        "https://github.com/PlamGG/Fraud-Detection-Multi-Model-",
-        use_container_width=True,
-    )
+with title_col:
+    st.markdown("## 🏛️ Fraud Operations — Live Matrix Dashboard")
+    status_txt = "🟢 MONITORING ACTIVE" if st.session_state.running else "⏸️ MONITORING PAUSED"
+    st.caption(f"{status_txt} · Model Ensemble Framework A × B · Threshold Rules Enabled")
 
-# ─── Main header ─────────────────────────────────────────────────────────────
-st.markdown("## Fraud Detection — Multi-Model · Live Monitor")
-status_txt = "🟢 Running" if st.session_state.running else "⏸ Paused"
-st.caption(f"{status_txt}  ·  Model version 2026-05-24  ·  w\\* = 0.30  ·  Ensemble: Model A × Model B")
+with ctrl_col:
+    st.markdown("<div style='padding-top: 12px;'></div>", unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    start_btn = c1.button("▶ Start / Resume", use_container_width=True, type="primary", disabled=st.session_state.running)
+    pause_btn = c2.button("⏸ Pause", use_container_width=True, disabled=not st.session_state.running)
 
-# ─── KPI strip ───────────────────────────────────────────────────────────────
-k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("Total transactions", st.session_state.total_tx)
-k2.metric("Blocked",  st.session_state.total_block,  delta=None)
-k3.metric("Alert+OTP", st.session_state.total_alert, delta=None)
-k4.metric("Passed",   st.session_state.total_pass,   delta=None)
-k5.metric("Amount at risk (฿)",
-          f"{st.session_state.amount_risk:,.0f}")
+    if start_btn:
+        if not st.session_state.accounts:  
+            seed = random.randint(0, 99999)
+            st.session_state.accounts = generate_accounts(n=n_accs, seed=seed)
+        st.session_state.running = True
+        st.rerun()
+
+    if pause_btn:
+        st.session_state.running = False
+        st.rerun()
 
 st.divider()
 
-# ─── Two-column layout ────────────────────────────────────────────────────────
-feed_col, alert_col = st.columns([3, 2], gap="medium")
+# ─── Top Split Grid: Financial Metrics & Accounts Grid ────────────────────────
+metric_col, watchlist_col = st.columns([6, 4], gap="medium")
 
-feed_placeholder  = feed_col.empty()
-alert_placeholder = alert_col.empty()
+with metric_col:
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Processed Transactions", f"{st.session_state.total_tx} tx")
+    m2.metric("Critical Blocked", st.session_state.total_block)
+    m3.metric("OTP Challenges", st.session_state.total_alert)
+    m4.metric("Funds at Risk Exposure", f"฿{st.session_state.amount_risk:,.0f}")
 
-# ─── Render helpers ───────────────────────────────────────────────────────────
-def _decision_class(tx: dict) -> str:
-    d = tx["decision"]
-    if "Rule" in d:  return "rule1"
-    if "Block" in d: return "fraud"
-    if "Alert" in d: return "alert"
-    return "pass"
+with watchlist_col:
+    st.markdown("<p style='font-size:12px; font-weight:600; color:#475569; margin:0 0 6px 0;'>🎯 Account Audit Matrix</p>", unsafe_allow_html=True)
+    if st.session_state.accounts:
+        acc_table = """<table class="bank-table">
+            <tr><th>Account ID</th><th>Baseline Risk</th><th>Operational Status</th></tr>"""
+        for acc in st.session_state.accounts:
+            icon, status_color = {
+                "normal": ("🟢 Normal", "background:#dcfce7;color:#16a34a"),
+                "alert": ("🟡 Warning", "background:#fef3c7;color:#d97706"),
+                "blocked": ("🔴 Blocked", "background:#fee2e2;color:#dc2626")
+            }.get(acc["status"], ("⚪ Unknown", ""))
+            
+            risk_badge = f"🔥 {acc['risk_level'].upper()}" if acc['risk_level'] == 'high' else acc['risk_level'].upper()
+            acc_table += f"""<tr>
+                <td><code style='font-size:11px;'>{acc['account_id']}</code></td>
+                <td>{risk_badge}</td>
+                <td><span class="status-badge" style="{status_color}">{icon}</span></td>
+            </tr>"""
+        acc_table += "</table>"
+        st.markdown(acc_table, unsafe_allow_html=True)
+    else:
+        st.caption("No accounts mapped. Click 'Start / Resume' to link core systems.")
 
-def _badge(tx: dict) -> str:
-    d = tx["decision"]
-    if "Rule" in d:  return '<span class="badge badge-rule1">Rule 1</span>'
-    if "Block" in d: return '<span class="badge badge-block">Block</span>'
-    if "Alert" in d: return '<span class="badge badge-alert">Alert+OTP</span>'
-    return '<span class="badge badge-pass">Pass</span>'
+st.markdown("<br>", unsafe_allow_html=True)
 
+# ─── Bottom Split Grid: Fixed-Height Containers ───────────────────────────────
+feed_col, alert_col = st.columns([55, 45], gap="medium")
 
-def render_feed(feed: list):
-    html = ""
-    for tx in feed[:40]:
-        cls   = _decision_class(tx)
-        badge = _badge(tx)
-        score_color = (
-            "#ef4444" if tx["final_score"] >= 0.8 else
-            "#f59e0b" if tx["final_score"] >= 0.5 else
-            "#22c55e"
-        )
-        flags = []
-        if tx["rule1"]: flags.append("Accessibility+Remote")
-        if tx["rule2"]: flags.append("Hesitation+NewRecipient")
-        flag_txt = " · ".join(flags) if flags else "No hard rule"
+with feed_col:
+    st.markdown("#### ⏱️ Real-Time Transaction Ledger")
+    st.caption("Global financial traffic logging (Ordered: $001 \\rightarrow 002 \\rightarrow 003$)")
+    feed_box = st.container(height=480) 
 
-        html += f"""
-<div class="tx-card {cls}">
-  <div style="display:flex;justify-content:space-between;align-items:center">
-    <div>{badge} <strong>{tx['tx_id']}</strong></div>
-    <div style="font-weight:600">฿ {tx['amount']:,.0f}</div>
-  </div>
-  <div class="tx-meta">{tx['account_id']} → {tx['dest_id']} · step {tx['step']}</div>
-  <div class="score-row">
-    Model A: <b>{tx['prob_a']:.3f}</b> &nbsp;
-    Model B: <b>{tx['prob_b']:.3f}</b> &nbsp;
-    Score: <b style="color:{score_color}">{tx['final_score']:.3f}</b> &nbsp;·&nbsp;
-    {flag_txt}
-  </div>
-</div>"""
-    return html
+with alert_col:
+    st.markdown("#### 🚨 Security Incident Alerts Queue")
+    st.caption("Decisions requiring compliance review or automated intercept")
+    alert_box = st.container(height=480) 
 
+# ─── Function to build table HTML (Append-friendly) ──────────────────────────
+def build_feed_table(feed_list) -> str:
+    html_table = """<table class="bank-table">
+        <tr><th>Time</th><th>Tx ID</th><th>Routing Sequence</th><th>Amount</th><th>Score</th><th>Action</th></tr>"""
+    for f_tx in feed_list[-40:]: 
+        style_cls = "text-block" if "Block" in f_tx["decision"] else "text-alert" if "Alert" in f_tx["decision"] else "text-pass"
+        html_table += f"""<tr>
+            <td style='color:#64748b; font-family:monospace;'>{f_tx.get('tx_time', '00:00:00')}</td>
+            <td><strong>{f_tx['tx_id']}</strong></td>
+            <td><code>{f_tx['account_id']}</code> ➔ <code>{f_tx['dest_id']}</code></td>
+            <td><b>฿{f_tx['amount']:,.0f}</b></td>
+            <td><code>{f_tx['final_score']:.2f}</code></td>
+            <td class="{style_cls}">{f_tx['decision'].upper()}</td>
+        </tr>"""
+    html_table += "</table>"
+    return html_table
 
-def render_alerts(alerts: list):
-    html = ""
-    for tx in alerts[:25]:
-        d = tx["decision"]
-        if "Rule" in d:
-            cls, label = "rule", "Rule 1 — Hard Block"
-            detail = "Accessibility Service + Remote Access Application both active. Blocked before ML scoring."
-        elif "Block" in d:
-            cls, label = "block", "Block"
-            detail = f"Ensemble score {tx['final_score']:.3f} ≥ 0.80. Model A={tx['prob_a']:.3f} · Model B={tx['prob_b']:.3f}."
-        else:
-            cls, label = "otp", "Alert + OTP"
-            detail = f"Score {tx['final_score']:.3f} ≥ 0.50. OTP challenge triggered."
-
-        html += f"""
-<div class="alert-card {cls}">
-  <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-    <span class="badge badge-{'rule1' if cls=='rule' else cls}">{label}</span>
-    <strong style="font-size:12px">{tx['tx_id']} · {tx['account_id']}</strong>
-  </div>
-  <div style="font-size:11px;color:#374151">{detail}</div>
-  <div style="font-size:10px;color:#94a3b8;margin-top:3px">
-    ฿ {tx['amount']:,.0f} · step {tx['step']} · {tx['layer']}
-  </div>
-</div>"""
-    return html
-
-
-# ─── Simulation loop ──────────────────────────────────────────────────────────
+# ─── Simulation Core Loop & Rendering Logic ──────────────────────────────────
 if st.session_state.running and st.session_state.accounts:
+    
+    # 📌 สร้าง Placeholder ไว้ "นอกลูป" แค่ครั้งเดียว เพื่อล็อคหัวตารางให้ไม่วาดซ้ำซาก
+    with feed_box:
+        feed_placeholder = st.empty()
+        
+    with alert_box:
+        alert_placeholder = st.empty()
+
     while st.session_state.running:
-        # Pick a random account
+        # Pick account & process transaction
         account = random.choice(st.session_state.accounts)
-
-        # Generate + score
-        raw_tx = generate_transaction(
-            account,
-            step=st.session_state.step,
-            tx_counter=st.session_state.tx_counter,
-        )
+        raw_tx = generate_transaction(account, step=st.session_state.step, tx_counter=st.session_state.tx_counter)
         tx = score_transaction(raw_tx)
+        
+        # ฝังเวลาปัจจุบันของระบบธนาคารระดับวินาที
+        tx['tx_time'] = datetime.now().strftime("%H:%M:%S")
 
-        # Update account status
+        # Handle status state mutations
         d = tx["decision"]
-        if "Block" in d:
-            account["status"] = "blocked"
-        elif "Alert" in d:
-            account["status"] = "alert"
+        if "Block" in d:   account["status"] = "blocked"
+        elif "Alert" in d: account["status"] = "alert"
 
-        # Prepend to feed (newest first)
-        st.session_state.feed    = [tx] + st.session_state.feed
+        # สะสมข้อมูลธุรกรรมต่อท้ายลิสต์เดิมลงไปข้างล่าง
+        st.session_state.feed = st.session_state.feed + [tx]
         st.session_state.total_tx += 1
         st.session_state.tx_counter += 1
 
         if "Block" in d:
             st.session_state.total_block += 1
-            st.session_state.alerts = [tx] + st.session_state.alerts
+            st.session_state.alerts = st.session_state.alerts + [tx]
             st.session_state.amount_risk += tx["amount"]
         elif "Alert" in d:
             st.session_state.total_alert += 1
-            st.session_state.alerts = [tx] + st.session_state.alerts
+            st.session_state.alerts = st.session_state.alerts + [tx]
             st.session_state.amount_risk += tx["amount"] * 0.5
         else:
             st.session_state.total_pass += 1
 
-        # Advance step every 6 transactions
         if st.session_state.tx_counter % 6 == 0:
             st.session_state.step += 1
 
-        # Render
-        with feed_placeholder.container():
-            st.markdown("#### Transaction feed")
-            st.caption("Newest first · showing last 40")
-            st.markdown(render_feed(st.session_state.feed), unsafe_allow_html=True)
+        # 📌 เขียนทับกล่องเดิมเพื่อเพิ่มแถวใหม่ (+1 แถวต่อท้ายในตารางเดี่ยว) หัวตารางจะไม่ซ้ำแล้ว
+        feed_placeholder.markdown(build_feed_table(st.session_state.feed), unsafe_allow_html=True)
 
+        # อัปเดตฝั่ง Alerts Queue ในกล่องเดิมเช่นกันแบบเรียบเนียน
         with alert_placeholder.container():
-            n_alerts = len(st.session_state.alerts)
-            st.markdown(f"#### Alerts ({n_alerts})")
-            st.caption("Ordered by detection time")
             if st.session_state.alerts:
-                st.markdown(render_alerts(st.session_state.alerts), unsafe_allow_html=True)
+                for a_tx in st.session_state.alerts[-20:]:
+                    title_text = f"🚨 [{a_tx['tx_time']}] {a_tx['tx_id']} | ฿{a_tx['amount']:,.0f} ➔ {a_tx['decision'].upper()}"
+                    with st.expander(title_text):
+                        st.markdown(f"""
+                        **Incident Deep-Dive Metrics:**
+                        * **Timestamp:** `{a_tx['tx_time']}`
+                        * **Source Account:** `{a_tx['account_id']}`
+                        * **Destination Target:** `{a_tx['dest_id']}`
+                        * **Model A Probability (Behavior Engine):** `{a_tx['prob_a']:.3f}`
+                        * **Model B Probability (Counterparty Network):** `{a_tx['prob_b']:.3f}`
+                        * **Weighted Ensemble Score:** `{a_tx['final_score']:.3f}`
+                        * **Pipeline Detection Layer:** `{a_tx['layer']}`
+                        * **Hard Rules Active:** `Rule 1 (Remote Access): {a_tx['rule1']}` | `Rule 2 (Hesitation Pattern): {a_tx['rule2']}`
+                        """)
             else:
-                st.info("No alerts yet.")
+                st.success("🟢 OPERATIONAL STATUS: SECURED — No anomalies flagged by models currently.")
 
         time.sleep(speed)
-
 else:
-    # Static render when not running
-    with feed_placeholder.container():
-        st.markdown("#### Transaction feed")
+    # Static render loop เมื่อกด PAUSE (ตารางคงสภาพล่าสุดนิ่งๆ ไว้ให้ตรวจสอบ)
+    with feed_box:
         if st.session_state.feed:
-            st.markdown(render_feed(st.session_state.feed), unsafe_allow_html=True)
+            st.markdown(build_feed_table(st.session_state.feed), unsafe_allow_html=True)
         else:
-            st.info("Press **▶ Start** in the sidebar to begin the simulation.")
+            st.info("System Ready. Click **▶ Start / Resume** to map ledger feeds.")
 
-    with alert_placeholder.container():
-        st.markdown(f"#### Alerts ({len(st.session_state.alerts)})")
+    with alert_box:
         if st.session_state.alerts:
-            st.markdown(render_alerts(st.session_state.alerts), unsafe_allow_html=True)
+            for a_tx in st.session_state.alerts[-20:]:
+                title_text = f"🚨 [{a_tx['tx_time']}] {a_tx['tx_id']} | ฿{a_tx['amount']:,.0f} ➔ {a_tx['decision'].upper()}"
+                with st.expander(title_text):
+                    st.markdown(f"""
+                    **Incident Deep-Dive Metrics:**
+                    * **Timestamp:** `{a_tx['tx_time']}`
+                    * **Source Account:** `{a_tx['account_id']}`
+                    * **Destination Target:** `{a_tx['dest_id']}`
+                    * **Model A Probability:** `{a_tx['prob_a']:.3f}`
+                    * **Model B Probability:** `{a_tx['prob_b']:.3f}`
+                    * **Weighted Ensemble Score:** `{a_tx['final_score']:.3f}`
+                    """)
         else:
-            st.info("No alerts yet.")
+            st.success("🟢 OPERATIONAL STATUS: SECURED — No anomalies flagged by models currently.")
